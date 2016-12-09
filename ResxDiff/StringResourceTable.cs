@@ -10,48 +10,97 @@ namespace ResxDiff
 {
     class StringResourceTable
     {
+        private const string DEFAULT_RESX_FILENAME = "Resources.resx";
+        private const string RESX_FILE_FILTER = "*.resx";
+
+        private string _newResxFilePath = null;
+        private string _oldResxFilePath = null;
+
+        private string _newDefaultResxFile = null;
+        private string _oldDefaultResxFile = null;
+
         private string _defaultResxFile = null;
 
         private DataTable _table = null;
 
-
-        public StringResourceTable(string resxFilePath)
+        public StringResourceTable(string newResxFilePath, string oldResxFilePath)
         {
+            if (newResxFilePath == null)
+            {
+                // TODO: Report error
+                return;
+            }
+
+            if (oldResxFilePath == null)
+            {
+                // TODO: Report error
+                return;
+            }
+
+            _newResxFilePath = newResxFilePath;
+            _oldResxFilePath = oldResxFilePath;
+
             try
             {
-                if (!Directory.Exists(resxFilePath))
+                if (!Directory.Exists(_newResxFilePath))
                 {
                     // TODO: Report error
                     return;
                 }
 
-                _defaultResxFile = Path.Combine(resxFilePath, "Resources.resx");
-                if (!File.Exists(_defaultResxFile))
-                {
-                    // TODO: Report error
-                    _defaultResxFile = null;
-                    return;
-                }
-
-                Environment.CurrentDirectory = resxFilePath;
-
-                string[] resxFiles = Directory.GetFiles(resxFilePath, "*.resx");
-                if (resxFiles.Length < 1)
+                if (!Directory.Exists(_oldResxFilePath))
                 {
                     // TODO: Report error
                     return;
                 }
 
-                // Remove the default resx file from the array
-                resxFiles = resxFiles.Where((val, idx) => idx != Array.IndexOf(resxFiles, _defaultResxFile)).ToArray();
+                _newDefaultResxFile = Path.Combine(_newDefaultResxFile, DEFAULT_RESX_FILENAME);
+                if (!File.Exists(_newDefaultResxFile))
+                {
+                    // TODO: Report error
+                    _newDefaultResxFile = null;
+                    return;
+                }
+
+                _oldDefaultResxFile = Path.Combine(_oldDefaultResxFile, DEFAULT_RESX_FILENAME);
+                if (!File.Exists(_oldDefaultResxFile))
+                {
+                    // TODO: Report error
+                    _oldDefaultResxFile = null;
+                    return;
+                }
+
+                Environment.CurrentDirectory = _newResxFilePath;
+                string[] newResxFiles = Directory.GetFiles(_newResxFilePath, RESX_FILE_FILTER);
+                if (newResxFiles.Length < 1)
+                {
+                    // TODO: Report error
+                    return;
+                }
+
+                string[] oldResxFiles = Directory.GetFiles(_oldResxFilePath, RESX_FILE_FILTER);
+                if (oldResxFiles.Length < 1)
+                {
+                    // TODO: Report error
+                    return;
+                }
+
+                // Remove the default resx file from the new array
+                newResxFiles = newResxFiles.Where((value, index) => index != Array.IndexOf(newResxFiles, _newDefaultResxFile)).ToArray();
+
+                // Move the default resx file to the beginning of the old array
+                oldResxFiles = oldResxFiles.Where((value, index) => index != Array.IndexOf(oldResxFiles, _oldDefaultResxFile)).ToArray();
 
                 IntializeTable();
 
-                //?
-
-                foreach (string resxFile in resxFiles)
+                foreach (string resxFile in newResxFiles)
                 {
                     AddResxFileToTable(resxFile);
+                }
+
+                foreach (string resxFile in oldResxFiles)
+                {
+                    AddResxFileToTable(resxFile, true);
                 }
             }
             catch (Exception e)
@@ -105,9 +154,9 @@ namespace ResxDiff
             reader.Close();
         }
 
-        private void AddResxFileToTable(string resxFile)
+        private void AddResxFileToTable(string resxFile, bool isOldData = false)
         {
-            string columnName = Path.GetFileName(resxFile).Split('.')[1];
+            string columnName = (isOldData ? "old_" : "") + Path.GetFileName(resxFile).Split('.')[1];
 
             // Add a data table column for this file
             DataColumn col;

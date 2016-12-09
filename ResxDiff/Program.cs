@@ -12,56 +12,21 @@ namespace ResxDiff
         {
             Settings settings = new Settings(args);
 
-            string tempLoc = @"C:\source\git\PICO\TrimbleFieldLink-a\Foundation.SharedResources\Properties";
+            // Temp dev code
+            string tempNewLoc = null, tempOldLoc = null;
+            if (Environment.MachineName == "BSANTOR-US-LE02")
+            {
+                tempNewLoc = @"C:\Source\PICO\TrimbleFieldLink\Foundation.SharedResources\Properties";
+                tempOldLoc = @"C:\Source\PICO\TrimbleFieldLink-a\Foundation.SharedResources\Properties";
+            }
+            else
+            {
+                tempNewLoc = @"C:\source\git\PICO\TrimbleFieldLink-a\Foundation.SharedResources\Properties";
+                tempOldLoc = @"";
+            }
 
-            StringResourceTable srtNew = new StringResourceTable(tempLoc);
-
-            // --- new dir ---
-
-            // in the "new" dir, determine how many language resx's are used
-
-            // load the default resx (text file)
-
-            // build a table to accomodate the default plus the additional resx's
-
-            // populate the table with the default resx data
-
-            // sort it by ID string
-
-            // foreach additional resx
-
-            //  // load the resx (text file)
-
-            //  // foreach string ID
-
-            //  //  // find default ID match
-
-            //  //  // copy string to corresponding cell in table
-
-            // in the "new" dir, determine how many language resx's are used
-
-            // load the default resx (text file)
-
-            // build a table to accomodate the default plus the additional resx's
-
-            // populate the table with the default resx data
-
-            // sort it by ID string
-
-            // foreach additional resx
-
-            //  // load the resx (text file)
-
-            //  // foreach string ID
-
-            //  //  // find default ID match
-
-            //  //  // copy string to corresponding cell in table
-
-
-            // --- old dir ---
-
-            // (repeat steps from new dir)
+            // Build a string resource table from the code base's resx files
+            StringResourceTable srtNew = new StringResourceTable(tempNewLoc, tempOldLoc);
 
 
             // --- compare ---
