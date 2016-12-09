@@ -78,7 +78,8 @@ namespace ResxDiff
                     return;
                 }
 
-                string[] oldResxFiles = Directory.GetFiles(_oldResxFilePath, RESX_FILE_FILTER);
+                ArrayList tempList = new ArrayList();
+                string[] oldResxFiles = Directory.GetFiles(_oldResxFilePath, DEFAULT_RESX_FILENAME);
                 if (oldResxFiles.Length < 1)
                 {
                     // TODO: Report error
@@ -90,6 +91,8 @@ namespace ResxDiff
 
                 // Move the default resx file to the beginning of the old array
                 oldResxFiles = oldResxFiles.Where((value, index) => index != Array.IndexOf(oldResxFiles, _oldDefaultResxFile)).ToArray();
+
+                oldResxFiles += Directory.GetFiles(_oldResxFilePath, RESX_FILE_FILTER);
 
                 IntializeTable();
 
