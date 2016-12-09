@@ -42,27 +42,27 @@ namespace ResxDiff
 
             try
             {
+                // The given new & old resx paths must exist
                 if (!Directory.Exists(_newResxFilePath))
                 {
                     // TODO: Report error
                     return;
                 }
-
                 if (!Directory.Exists(_oldResxFilePath))
                 {
                     // TODO: Report error
                     return;
                 }
 
-                _newDefaultResxFile = Path.Combine(_newDefaultResxFile, DEFAULT_RESX_FILENAME);
+                // The default resx files in those paths must exist
+                _newDefaultResxFile = Path.Combine(_newResxFilePath, DEFAULT_RESX_FILENAME);
                 if (!File.Exists(_newDefaultResxFile))
                 {
                     // TODO: Report error
                     _newDefaultResxFile = null;
                     return;
                 }
-
-                _oldDefaultResxFile = Path.Combine(_oldDefaultResxFile, DEFAULT_RESX_FILENAME);
+                _oldDefaultResxFile = Path.Combine(_oldResxFilePath, DEFAULT_RESX_FILENAME);
                 if (!File.Exists(_oldDefaultResxFile))
                 {
                     // TODO: Report error
@@ -70,29 +70,26 @@ namespace ResxDiff
                     return;
                 }
 
-                Environment.CurrentDirectory = _newResxFilePath;
-                string[] newResxFiles = Directory.GetFiles(_newResxFilePath, RESX_FILE_FILTER);
-                if (newResxFiles.Length < 1)
+                // Make a list of new resx files, not including the default one
+                ArrayList newResxFiles = new ArrayList();
+                foreach (string file in Directory.GetFiles(_newResxFilePath, RESX_FILE_FILTER))
                 {
-                    // TODO: Report error
-                    return;
+                    if (file != _newDefaultResxFile)
+                    {
+                        newResxFiles.Add(file);
+                    }
                 }
 
-                ArrayList tempList = new ArrayList();
-                string[] oldResxFiles = Directory.GetFiles(_oldResxFilePath, DEFAULT_RESX_FILENAME);
-                if (oldResxFiles.Length < 1)
+                // Make a list of old resx files, including the default one in the first position
+                ArrayList oldResxFiles = new ArrayList();
+                oldResxFiles.Add(_oldDefaultResxFile);
+                foreach (string file in Directory.GetFiles(_oldResxFilePath, RESX_FILE_FILTER))
                 {
-                    // TODO: Report error
-                    return;
+                    if (file != _oldDefaultResxFile)
+                    {
+                        oldResxFiles.Add(file);
+                    }
                 }
-
-                // Remove the default resx file from the new array
-                newResxFiles = newResxFiles.Where((value, index) => index != Array.IndexOf(newResxFiles, _newDefaultResxFile)).ToArray();
-
-                // Move the default resx file to the beginning of the old array
-                oldResxFiles = oldResxFiles.Where((value, index) => index != Array.IndexOf(oldResxFiles, _oldDefaultResxFile)).ToArray();
-
-                oldResxFiles += Directory.GetFiles(_oldResxFilePath, RESX_FILE_FILTER);
 
                 IntializeTable();
 
@@ -117,44 +114,56 @@ namespace ResxDiff
 
         private void IntializeTable()
         {
-            // Create data table
-            _table = new DataTable();
-
-            // Add our ID column
-            DataColumn col = new DataColumn();
-            col.DataType = Type.GetType("System.String");
-            col.ColumnName = "ID";
-            col.AutoIncrement = false;
-            col.Caption = "ID";
-            col.ReadOnly = false;
-            col.Unique = false;
-            _table.Columns.Add(col);
-
-            // Add our default value column
-            col = new DataColumn();
-            col.DataType = Type.GetType("System.String");
-            col.ColumnName = "Default";
-            col.AutoIncrement = false;
-            col.Caption = "Default";
-            col.ReadOnly = false;
-            col.Unique = false;
-            _table.Columns.Add(col);
-
-            // Get data from default resx file
-            ResXResourceReader reader = new ResXResourceReader(_defaultResxFile);
-            DataRow row;
-            foreach (DictionaryEntry entry in reader)
+            try
             {
-                if (entry.Value is String)
-                {
-                    row = _table.NewRow();
-                    row["ID"] = entry.Key.ToString();
-                    row["Default"] = entry.Value.ToString();
-                    _table.Rows.Add(row);
-                }
-            }
+                // Create data table
+                _table = new DataTable();
 
-            reader.Close();
+                // Add our ID column
+                DataColumn col = new DataColumn();
+                col.DataType = Type.GetType("System.String");
+                col.ColumnName = "ID";
+                col.AutoIncrement = false;
+                col.Caption = "ID";
+                col.ReadOnly = false;
+                col.Unique = false;
+                _table.Columns.Add(col);
+
+                // Add our default value column
+                col = new DataColumn();
+                col.DataType = Type.GetType("System.String");
+                col.ColumnName = "Default";
+                col.AutoIncrement = false;
+                col.Caption = "Default";
+                col.ReadOnly = false;
+                col.Unique = false;
+                _table.Columns.Add(col);
+
+                // Change the current directory to our new ResX file path, so the files will be
+                // processed correctly
+                Environment.CurrentDirectory = _newResxFilePath;
+
+                // Get data from default resx file
+                ResXResourceReader reader = new ResXResourceReader(_newDefaultResxFile);
+                DataRow row;
+                foreach (DictionaryEntry entry in reader)
+                {
+                    if (entry.Value is String)
+                    {
+                        row = _table.NewRow();
+                        row["ID"] = entry.Key.ToString();
+                        row["Default"] = entry.Value.ToString();
+                        _table.Rows.Add(row);
+                    }
+                }
+
+                reader.Close();
+            }
+            catch (Exception e)
+            {
+                // TODO: Error handling
+                Console.WriteLine(e);
+            }
         }
 
         private void AddResxFileToTable(string resxFile, bool isOldData = false)

@@ -22,7 +22,7 @@ namespace ResxDiff
             else
             {
                 tempNewLoc = @"C:\source\git\PICO\TrimbleFieldLink-a\Foundation.SharedResources\Properties";
-                tempOldLoc = @"";
+                tempOldLoc = @"C:\source\git\PICO\TrimbleFieldLink-b\Foundation.SharedResources\Properties";
             }
 
             // Build a string resource table from the code base's resx files
