@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Data;
+
 
 namespace ResxDiff
 {
@@ -14,37 +12,25 @@ namespace ResxDiff
 
             // Temp dev code
             string tempNewLoc = null, tempOldLoc = null;
-            if (Environment.MachineName == "BSANTOR-US-LE02")
+            tempNewLoc = @"C:\source\git\PICO\TrimbleFieldLink-a\Foundation.SharedResources\Properties";
+            tempOldLoc = @"C:\source\git\PICO\TrimbleFieldLink-b\Foundation.SharedResources\Properties";
+
+            // Build a string resource table from the code base's new & old resx files
+            StringResourceTable stringResourceTable = new StringResourceTable(tempNewLoc, tempOldLoc);
+
+            if (!stringResourceTable.IsValid)
             {
-                tempNewLoc = @"C:\Source\PICO\TrimbleFieldLink\Foundation.SharedResources\Properties";
-                tempOldLoc = @"C:\Source\PICO\TrimbleFieldLink-a\Foundation.SharedResources\Properties";
-            }
-            else
-            {
-                tempNewLoc = @"C:\source\git\PICO\TrimbleFieldLink-a\Foundation.SharedResources\Properties";
-                tempOldLoc = @"C:\source\git\PICO\TrimbleFieldLink-b\Foundation.SharedResources\Properties";
+                // TODO: Display an error? Or will we do that already?
+                return;
             }
 
-            // Build a string resource table from the code base's resx files
-            StringResourceTable srtNew = new StringResourceTable(tempNewLoc, tempOldLoc);
+            stringResourceTable.TestStrings();
 
 
-            // --- compare ---
-
-            // foreach cell in "new"
-
-            //  // compare to corresponding cell in "old"
-
-            //  // Report if string IDs don't match exactly
-
-            //  // Report if default strings don't match exactly
-
-            //  // Report if translated strings don't match exactly
+            stringResourceTable.OutputResults();
 
 
-            // --- output ---
-
-            // Output report to file
+            Console.WriteLine("\nDone!");
 
             // Finish up
             if (settings.IsWaitForKeypressOnFinish)

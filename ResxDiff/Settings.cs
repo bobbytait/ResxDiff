@@ -38,6 +38,10 @@ namespace ResxDiff
 
         public bool IsWaitForKeypressOnFinish = false;
 
+        public int Verbosity = 0;
+
+        // Need a value to determine when/not to return 0, depending on results
+
         public Settings(string[] args)
         {
             if (args.Length < 1)
