@@ -1,21 +1,39 @@
 ﻿using System;
+using System.IO;
 
 
 namespace ResxDiff
 {
     public static class Settings
     {
-        //
-        public static string[] args = null;
+        public const string DEFAULT_RESX_FILENAME = "Resources.resx";
+
+        // Directory containing newer resx file
+        public static string NewResxDir = null;
+
+        // --- Undeveloped switches, but variables in use ---
+
+        // If true, output a report on this type of finding
+        public static bool IsReportMismatches = true;
+        public static bool IsReportAdds = true;
+        public static bool IsReportDeletes = true;
+        public static bool IsReportMatches = false;
+
+        // If true, return an error code on this type of finding
+        public static bool IsErrorOnMismatches = true;
+        public static bool IsErrorOnAdds = false;
+        public static bool IsErrorOnDeletes = false;
+
+        // If true, after running, waits for a keypress to return to caller
+        public static bool IsWaitForKeypressOnFinish = false;
+
+        // --- As yet undeveloped switches ---
 
         // Directory of this repository's local root
         public static string GitRootPath = null;
 
         // Git branch to compare with
         public static string GitBranch = null;
-
-        // Directory containing newer resx files
-        public static string NewResxDir = null;
 
         // Directory containing older resx files we want to compare with
         public static string OldResxDir = null;
@@ -36,18 +54,7 @@ namespace ResxDiff
         // For scripting, return a non-zero code if any discrepencies found
         public static bool IsReturnFailureOnDiscrepency = true;
 
-        public static bool IsWaitForKeypressOnFinish = false;
-
         public static bool IsShowProgress = false;
-
-        public static bool IsReportMismatches = true;
-        public static bool IsReportAdds= true;
-        public static bool IsReportDeletes = true;
-        public static bool IsReportMatches = false;
-
-        public static bool IsErrorOnMismatches = true;
-        public static bool IsErrorOnAdds = false;
-        public static bool IsErrorOnDeletes = false;
 
         public static int Verbosity = 0;
 
@@ -55,37 +62,56 @@ namespace ResxDiff
 
         //static Settings()
         //{
-        //    if (args.Length < 1)
-        //    {
-        //        Console.WriteLine("Arguments: <none>");
-
-        //        // TODO: Set up any default values, if we need to
-
-        //        return;
-        //    }
-
-        //    Console.WriteLine("Arguments: {0}", args);
-
-        //    foreach (string arg in args)
-        //    {
-        //        string argl = arg.ToLower();
-        //        if (argl == "/w")
-        //        {
-        //            // W: After running, waits for a keypress to return to comnmand prompt
-        //            IsWaitForKeypressOnFinish = true;
-        //            continue;
-        //        }
-        //        else if (argl == "/b")
-        //        {
-        //            // Set property
-        //            continue;
-        //        }
-        //        else if (argl == "/c")
-        //        {
-        //            // Set property
-        //            continue;
-        //        }
-        //    }
         //}
+
+        public static bool ProcessArgs(string[] args)
+        {
+            Console.WriteLine("Arguments: {0}", args);
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                string argName = args[i].ToLower();
+
+                // Path to the latest resources.resx file
+                if (argName == "/newpath")
+                {
+                    NewResxDir = args[++i];
+                    if (!Directory.Exists(NewResxDir))
+                    {
+                        Console.WriteLine(" [ERROR] Directory does not exist: {0}", NewResxDir);
+                        return false;
+                    }
+                    if (!File.Exists(Path.Combine(NewResxDir, DEFAULT_RESX_FILENAME)))
+                    {
+                        Console.WriteLine(" [ERROR] {0} does not exist in: {1}", DEFAULT_RESX_FILENAME, NewResxDir);
+                        return false;
+                    }
+                    continue;
+                }
+
+                // After running, waits for a keypress to return to comnmand prompt
+                else
+                if (argName == "/wait")
+                {
+                    IsWaitForKeypressOnFinish = true;
+                    continue;
+                }
+            }
+
+            // TODO: Set up any default values, if we need to
+
+            // If NewResxDir was not set above, assume "."
+            if (NewResxDir == null)
+            {
+                NewResxDir = Environment.CurrentDirectory;
+                if (!File.Exists(Path.Combine(NewResxDir, DEFAULT_RESX_FILENAME)))
+                {
+                    Console.WriteLine(" [ERROR] {0} does not exist in: {1}", DEFAULT_RESX_FILENAME, NewResxDir);
+                    return false;
+                }
+            }
+
+            return true;
+        }
     }
 }

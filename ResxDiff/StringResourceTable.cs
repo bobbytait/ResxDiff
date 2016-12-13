@@ -17,11 +17,9 @@ namespace ResxDiff
 
     public class StringResourceTable
     {
-        private const string DEFAULT_RESX_FILENAME = "Resources.resx";
         private const string RESX_FILE_FILTER = "*.resx";
         private const char FAKE_CR = '»';
 
-        private string _newResxFilePath = null;
         private string _oldResxFilePath = null;
 
         private string _newDefaultResxFile = null;
@@ -29,14 +27,11 @@ namespace ResxDiff
 
         public DataTable Table = null;
 
-        public bool IsValid = false;
 
         private int _oldDefaultColumnIndex = -1;
 
         public StringResourceTable(string newResxFilePath, string oldResxFilePath)
         {
-            IsValid = ValidatePaths(newResxFilePath, oldResxFilePath);
-            if (!IsValid) { return; }
 
             try
             {
@@ -44,7 +39,7 @@ namespace ResxDiff
 
                 // Make a list of new resx files, not including the default one
                 ArrayList newResxFiles = new ArrayList();
-                foreach (string file in Directory.GetFiles(_newResxFilePath, RESX_FILE_FILTER))
+                foreach (string file in Directory.GetFiles(Settings.NewResxDir, RESX_FILE_FILTER))
                 {
                     if (file != _newDefaultResxFile)
                     {
@@ -84,58 +79,6 @@ namespace ResxDiff
             }
         }
 
-        private bool ValidatePaths(string newResxFilePath, string oldResxFilePath)
-        {
-            try
-            {
-                _newResxFilePath = newResxFilePath;
-                _oldResxFilePath = oldResxFilePath;
-
-                if ((_newResxFilePath == null) || (_newResxFilePath == String.Empty))
-                {
-                    // TODO: Report error
-                    return false;
-                }
-
-                if ((_oldResxFilePath == null) || (_oldResxFilePath == String.Empty))
-                {
-                    // TODO: Report error
-                    return false;
-                }
-
-                if (!Directory.Exists(_newResxFilePath))
-                {
-                    // TODO: Report error
-                    return false;
-                }
-
-                if (!Directory.Exists(_oldResxFilePath))
-                {
-                    // TODO: Report error
-                    return false;
-                }
-
-                _newDefaultResxFile = Path.Combine(newResxFilePath, DEFAULT_RESX_FILENAME);
-                if (!File.Exists(_newDefaultResxFile))
-                {
-                    // TODO: Report error
-                    return false;
-                }
-                _oldDefaultResxFile = Path.Combine(_oldResxFilePath, DEFAULT_RESX_FILENAME);
-                if (!File.Exists(_oldDefaultResxFile))
-                {
-                    // TODO: Report error
-                    return false;
-                }
-            }
-            catch (Exception e)
-            {
-                // TODO: Error handling
-                Console.WriteLine(e);
-            }
-
-            return true;
-        }
 
         private void IntializeTable()
         {
@@ -149,7 +92,7 @@ namespace ResxDiff
 
                 // Change the current directory to our new ResX file path, so the files will be
                 // processed correctly
-                Environment.CurrentDirectory = _newResxFilePath;
+                Environment.CurrentDirectory = Settings.NewResxDir;
 
                 // Get data from default resx file
                 Console.WriteLine("Loading new default resx file...");

@@ -8,7 +8,10 @@ namespace ResxDiff
     {
         static int Main(string[] args)
         {
-            Settings.args = args;
+            if (!Settings.ProcessArgs(args))
+            {
+                return 1;
+            }
 
             // Temp dev code
             string tempNewLoc = null, tempOldLoc = null;
@@ -18,11 +21,6 @@ namespace ResxDiff
             // Build a string resource table from the code base's new & old resx files
             StringResourceTable stringResourceTable = new StringResourceTable(tempNewLoc, tempOldLoc);
 
-            if (!stringResourceTable.IsValid)
-            {
-                // TODO: Display an error? Or will we do that already?
-                return -1;
-            }
 
             int returnValue = stringResourceTable.TestStrings();
 
