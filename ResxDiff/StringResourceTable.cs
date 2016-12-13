@@ -7,10 +7,19 @@ using System.Resources;
 
 namespace ResxDiff
 {
-    class StringResourceTable
+    public enum ResultType
+    {
+        StringMatch = 0,
+        StringMismatch,
+        StringAdded,
+        StringDeleted
+    }
+
+    public class StringResourceTable
     {
         private const string DEFAULT_RESX_FILENAME = "Resources.resx";
         private const string RESX_FILE_FILTER = "*.resx";
+        private const string FAKE_CR = "»";
 
         private string _newResxFilePath = null;
         private string _oldResxFilePath = null;
@@ -21,6 +30,8 @@ namespace ResxDiff
         public DataTable Table = null;
 
         public bool IsValid = false;
+
+        private int _oldDefaultColumnIndex = -1;
 
         public StringResourceTable(string newResxFilePath, string oldResxFilePath)
         {
@@ -52,10 +63,14 @@ namespace ResxDiff
                     }
                 }
 
+                // TODO: We don't need all of these damn tables!
+
                 foreach (string resxFile in newResxFiles)
                 {
                     AddResxFileToTable(resxFile);
                 }
+
+                _oldDefaultColumnIndex = Table.Columns.Count;
 
                 foreach (string resxFile in oldResxFiles)
                 {
@@ -122,52 +137,15 @@ namespace ResxDiff
             return true;
         }
 
-        #region Add column methods
-
-        private void AddColumnString(string columnName)
-        {
-            DataColumn dataColumn = new DataColumn();
-            dataColumn.DataType = Type.GetType("System.String");
-            dataColumn.ColumnName = columnName;
-            dataColumn.Caption = columnName;
-            AddColumn(dataColumn);
-        }
-
-        private void AddColumnInt32(string columnName)
-        {
-            DataColumn dataColumn = new DataColumn();
-            dataColumn.DataType = Type.GetType("System.Int32");
-            dataColumn.ColumnName = columnName;
-            dataColumn.Caption = columnName;
-            AddColumn(dataColumn);
-        }
-
-        private void AddColumn(DataColumn dataColumn)
-        {
-            try
-            {
-                dataColumn.AutoIncrement = false;
-                dataColumn.ReadOnly = false;
-                dataColumn.Unique = false;
-                Table.Columns.Add(dataColumn);
-            }
-            catch (Exception e)
-            {
-                // TODO: Error handling
-                Console.WriteLine(e);
-            }
-        }
-
-        #endregion Add column methods
-
         private void IntializeTable()
         {
             try
             {
                 // Create data table
                 Table = new DataTable();
-                AddColumnString("ID");
-                AddColumnString("default");
+                Table.Columns.Add("ID", typeof(string));
+                Table.Columns.Add("result", typeof(Int32));
+                Table.Columns.Add("default", typeof(string));
 
                 // Change the current directory to our new ResX file path, so the files will be
                 // processed correctly
@@ -185,14 +163,13 @@ namespace ResxDiff
                     {
                         row = Table.NewRow();
                         row["ID"] = entry.Key.ToString();
-                        row["Default"] = entry.Value.ToString();
+                        row["result"] = -1;
+                        row["default"] = entry.Value.ToString();
                         Table.Rows.Add(row);
                     }
                 }
 
                 reader.Close();
-
-                AddColumnInt32("result");
             }
             catch (Exception e)
             {
@@ -208,7 +185,7 @@ namespace ResxDiff
             Console.WriteLine("Populating table with {0} resx entries...", columnName);
 
             // Add a data table column for this file
-            AddColumnString(columnName);
+            Table.Columns.Add(columnName, typeof(string));
 
             // TODO: Add exception handling
 
@@ -250,7 +227,7 @@ namespace ResxDiff
             reader.Close();
         }
 
-        public void TestStrings()
+        public int TestStrings()
         {
             Console.WriteLine("Checking resource strings...");
 
@@ -258,14 +235,16 @@ namespace ResxDiff
             int rows = Table.Rows.Count;
 
             int columnPairings = (columns - 1) / 2;
-            int newColumnIndex = 1;
-            int oldColumnIndex = columnPairings + 1;
-            int resultColumn = columns - 1;
+            int newColumnIndex = 2;
+            int oldColumnIndex = columnPairings + newColumnIndex;
+            //int resultColumn = 1;
+
+            int returnValue = 0;
 
             //Results results = new Results();
 
-            for (int i = 1; i < columnPairings; i++)
-            {
+            //for (int i = newColumnIndex; i < oldColumnIndex; i++)
+            //{
                 for (int j = 0; j < rows; j++)
                 {
                     DataRow row = Table.Rows[j];
@@ -280,62 +259,114 @@ namespace ResxDiff
                         // TODO: This is usually the translations for an added string
                         // For now, just count it as added, but we might want to alter that later
                         type = (int)ResultType.StringAdded;
+                        if (Settings.IsErrorOnAdds) { returnValue = 1; }
                     }
                     else if (oldVal == String.Empty)
                     {
                         type = (int)ResultType.StringAdded;
+                        if (Settings.IsErrorOnAdds) { returnValue = 1; }
                     }
                     else if (newVal == String.Empty)
                     {
                         type = (int)ResultType.StringDeleted;
+                        if (Settings.IsErrorOnDeletes) { returnValue = 1; }
                     }
                     else if (newVal != oldVal)
                     {
                         type = (int)ResultType.StringMismatch;
+                        if (Settings.IsErrorOnMismatches) { returnValue = 1; }
                     }
                     else
                     {
                         type = (int)ResultType.StringMatch;
                     }
 
-                    row.ItemArray[resultColumn] = (int)type;
+                    if (j == 0)
+                    {
+                        int z = 0;
+                    }
+
+                    row["result"] = (int)type;
                 }
 
-                newColumnIndex++;
-                oldColumnIndex++;
-            }
+                //newColumnIndex++;
+                //oldColumnIndex++;
+            //}
+
+            return returnValue;
         }
 
         public void OutputResults()
         {
-        }
-    }
+            DataView dataView;
+            string id;
+            string newVal;
+            string oldVal;
 
-    // OLD STUFF TO MAYBE/NOT COPY INTO CLASS
-
-        public enum ResultType
-        {
-            StringMatch = 0,
-            StringMismatch,
-            StringAdded,
-            StringDeleted
-        }
-
-        public class Result
-        {
-            private string _id = null;
-            private string _newVal = null;
-            private string _oldVal = null;
-
-            public Result(string id, string newVal, string oldVal)
+            // Filter on mismatched strings & sort
+            if (Settings.IsReportMismatches)
             {
-                _id = id;
-                _newVal = newVal;
-                _oldVal = oldVal;
+                dataView = SetDataView(ResultType.StringMismatch);
+                Console.WriteLine("\nResX Default String Mismatches: {0} ----------------------------------------\n", dataView.Count);
+                foreach (DataRowView item in dataView)
+                {
+                    id = item["ID"].ToString();
+                    newVal = item["default"].ToString().Replace("\n", FAKE_CR);
+                    oldVal = item[_oldDefaultColumnIndex].ToString().Replace("\n", FAKE_CR);
+                    Console.WriteLine("  {0}\n    New: {1}\n    Old: {2}\n", id, newVal, oldVal);
+                }
+            }
+
+            // Filter on deleted strings & sort
+            if (Settings.IsReportDeletes)
+            {
+                dataView = SetDataView(ResultType.StringDeleted);
+                Console.WriteLine("\nResX Default String Deletions: {0} ----------------------------------------\n", dataView.Count);
+                foreach (DataRowView item in dataView)
+                {
+                    id = item["ID"].ToString();
+                    oldVal = item[_oldDefaultColumnIndex].ToString().Replace("\n", FAKE_CR);
+                    Console.WriteLine("  {0}  //  {1}\n", id, oldVal);
+                }
+            }
+
+            // Filter on added strings & sort
+            if (Settings.IsReportAdds)
+            {
+                dataView = SetDataView(ResultType.StringAdded);
+                Console.WriteLine("\nResX Default String Additions: {0} ----------------------------------------\n", dataView.Count);
+                foreach (DataRowView item in dataView)
+                {
+                    id = item["ID"].ToString();
+                    newVal = item["default"].ToString().Replace("\n", FAKE_CR);
+                    Console.WriteLine("  {0}  //  {1}\n", id, newVal);
+                }
+            }
+
+            // Filter on matching strings & sort
+            if (Settings.IsReportMatches)
+            {
+                dataView = SetDataView(ResultType.StringMatch);
+                Console.WriteLine("\nResX String Matches: {0} ----------------------------------------\n", dataView.Count);
+                foreach (DataRowView item in dataView)
+                {
+                    id = item["ID"].ToString();
+                    newVal = item["default"].ToString().Replace("\n", FAKE_CR);
+                    Console.WriteLine("  {0}  //  {1}\n", id, newVal);
+                }
             }
         }
 
-        public class Results
+        public DataView SetDataView(ResultType resultType)
+        {
+            string filter = "result = " + ((int)resultType).ToString();
+            string sort = "ID ASC";
+            return new DataView(Table, filter, sort, DataViewRowState.CurrentRows);
+        }
+
+    }
+/*
+    public class Results
         {
             private const string SORT_ORDER = "ID ASC";
             public const string HEADER_LINE = "\n--------------------------------------------------------------------------------";
@@ -433,6 +464,6 @@ namespace ResxDiff
                 }
             }
         }
-
+*/
 
 }

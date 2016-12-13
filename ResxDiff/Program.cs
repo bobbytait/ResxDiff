@@ -6,9 +6,9 @@ namespace ResxDiff
 {
     class Program
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
-            Settings settings = new Settings(args);
+            Settings.args = args;
 
             // Temp dev code
             string tempNewLoc = null, tempOldLoc = null;
@@ -21,10 +21,10 @@ namespace ResxDiff
             if (!stringResourceTable.IsValid)
             {
                 // TODO: Display an error? Or will we do that already?
-                return;
+                return -1;
             }
 
-            stringResourceTable.TestStrings();
+            int returnValue = stringResourceTable.TestStrings();
 
 
             stringResourceTable.OutputResults();
@@ -33,9 +33,18 @@ namespace ResxDiff
             Console.WriteLine("\nDone!");
 
             // Finish up
-            if (settings.IsWaitForKeypressOnFinish)
+            if (Settings.IsWaitForKeypressOnFinish)
             {
                 Console.ReadLine();
+            }
+
+            if (Settings.IsReturnFailureOnDiscrepency)
+            {
+                return returnValue;
+            }
+            else
+            {
+                return 0;
             }
         }
     }
