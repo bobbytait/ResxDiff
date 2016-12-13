@@ -12,75 +12,22 @@ namespace ResxDiff
         StringMatch = 0,
         StringMismatch,
         StringAdded,
-        StringDeleted
+        StringDeleted,
+        StringsDuplicated,
+        StringsEmpty
     }
 
-    public class StringResourceTable
+    public static class StringResourceTable
     {
-        private const string RESX_FILE_FILTER = "*.resx";
         private const char FAKE_CR = '»';
 
-        private string _oldResxFilePath = null;
+        public static DataTable Table = null;
 
-        private string _newDefaultResxFile = null;
-        private string _oldDefaultResxFile = null;
+        //private static string _oldResxFilePath = null;
+        //private static string _oldDefaultResxFile = null;
+        //private static int _oldDefaultColumnIndex = -1;
 
-        public DataTable Table = null;
-
-
-        private int _oldDefaultColumnIndex = -1;
-
-        public StringResourceTable(string newResxFilePath, string oldResxFilePath)
-        {
-
-            try
-            {
-                IntializeTable();
-
-                // Make a list of new resx files, not including the default one
-                ArrayList newResxFiles = new ArrayList();
-                foreach (string file in Directory.GetFiles(Settings.NewResxDir, RESX_FILE_FILTER))
-                {
-                    if (file != _newDefaultResxFile)
-                    {
-                        newResxFiles.Add(file);
-                    }
-                }
-
-                // Make a list of old resx files, including the default one in the first position
-                ArrayList oldResxFiles = new ArrayList();
-                oldResxFiles.Add(_oldDefaultResxFile);
-                foreach (string file in Directory.GetFiles(_oldResxFilePath, RESX_FILE_FILTER))
-                {
-                    if (file != _oldDefaultResxFile)
-                    {
-                        oldResxFiles.Add(file);
-                    }
-                }
-
-                // TODO: We don't need all of these damn tables!
-
-                foreach (string resxFile in newResxFiles)
-                {
-                    AddResxFileToTable(resxFile);
-                }
-
-                _oldDefaultColumnIndex = Table.Columns.Count;
-
-                foreach (string resxFile in oldResxFiles)
-                {
-                    AddResxFileToTable(resxFile, true);
-                }
-            }
-            catch (Exception e)
-            {
-                // TODO: Error handling
-                Console.WriteLine(e);
-            }
-        }
-
-
-        private void IntializeTable()
+        public static bool Initialize()
         {
             try
             {
@@ -88,18 +35,32 @@ namespace ResxDiff
                 Table = new DataTable();
                 Table.Columns.Add("ID", typeof(string));
                 Table.Columns.Add("result", typeof(Int32));
-                Table.Columns.Add("default", typeof(string));
+                Table.Columns.Add("new", typeof(string));
+                Table.Columns.Add("old", typeof(string));
+            }
+            catch (Exception e)
+            {
+                // TODO: Error handling
+                Console.WriteLine(e);
+                return false;
+            }
 
-                // Change the current directory to our new ResX file path, so the files will be
-                // processed correctly
+            return true;
+        }
+
+        public static bool ImportNewResxData()
+        {
+            try
+            {
+                // Get data from new default resx file
+                Console.WriteLine("Loading new default resx file...");
+                string resxFile = Path.Combine(Settings.NewResxDir, Settings.DEFAULT_RESX_FILENAME);
+                ResXResourceReader reader = new ResXResourceReader(resxFile);
+
                 Environment.CurrentDirectory = Settings.NewResxDir;
 
-                // Get data from default resx file
-                Console.WriteLine("Loading new default resx file...");
-                ResXResourceReader reader = new ResXResourceReader(_newDefaultResxFile);
-                DataRow row;
-
                 Console.WriteLine("Populating table with new default resx entries...");
+                DataRow row;
                 foreach (DictionaryEntry entry in reader)
                 {
                     if (entry.Value is String)
@@ -107,7 +68,7 @@ namespace ResxDiff
                         row = Table.NewRow();
                         row["ID"] = entry.Key.ToString();
                         row["result"] = -1;
-                        row["default"] = entry.Value.ToString();
+                        row["new"] = entry.Value.ToString();
                         Table.Rows.Add(row);
                     }
                 }
@@ -118,133 +79,115 @@ namespace ResxDiff
             {
                 // TODO: Error handling
                 Console.WriteLine(e);
+                return false;
             }
+
+            return true;
         }
 
-        private void AddResxFileToTable(string resxFile, bool isOldData = false)
+        public static int ImportAndProcessOldResxData()
         {
-            string columnName = (isOldData ? "old_" : "") + Path.GetFileName(resxFile).Split('.')[1];
-
-            Console.WriteLine("Populating table with {0} resx entries...", columnName);
-
-            // Add a data table column for this file
-            Table.Columns.Add(columnName, typeof(string));
-
-            // TODO: Add exception handling
-
-            ResXResourceReader reader = new ResXResourceReader(resxFile);
-            DataRow row;
-            foreach (DictionaryEntry entry in reader)
+            try
             {
-                if (entry.Value is String)
+                // Get data from old default resx file
+                Console.WriteLine("Loading old default resx file...");
+                string resxFile = Path.Combine(Settings.OldResxDir, Settings.DEFAULT_RESX_FILENAME);
+                ResXResourceReader reader = new ResXResourceReader(resxFile);
+
+                Console.WriteLine("Populating table with old default resx entries...");
+                foreach (DictionaryEntry entry in reader)
                 {
-                    // Get entry's string ID & value
-                    string key = entry.Key.ToString();
-                    string value = entry.Value.ToString();
+                    if (entry.Value is String)
+                    {
+                        // Get entry's string ID & value
+                        string key = entry.Key.ToString();
+                        string value = entry.Value.ToString();
 
-                    // Look for string ID in Table
-                    DataRow[] foundRows = Table.Select(String.Format("ID = '{0}'", key));
-                    if (foundRows.Length < 1)
-                    {
-                        // If not found, add a new row, add this entry's string ID to its ID column and this
-                        // entry's value to its new column
-                        row = Table.NewRow();
-                        row["ID"] = key;
-                        row[columnName] = value;
-                        Table.Rows.Add(row);
-                    }
-                    else if (foundRows.Length == 1)
-                    {
-                        // If found, add this entry's value to the found-in row in the new column
-                        foundRows[0][columnName] = value;
-                    }
-                    else // (foundRows.Length > 1)
-                    {
-                        // Duplicated string IDs -- TODO: flag it but don't touch
-                    }
+                        // Look for string ID in Table
+                        DataRow[] foundRows = Table.Select(String.Format("ID = '{0}'", key));
+                        if (foundRows.Length == 1)
+                        {
+                            // If this entry is found in the "new" column, add the value to the row
+                            foundRows[0]["old"] = value;
 
-                    //Console.WriteLine("{0} | {1}", entry.Key.ToString(), entry.Value.ToString());
+                            // Compare its new & old strings and store the result
+                            foundRows[0]["result"] = CompareStrings(foundRows[0]["new"].ToString(), value);
+                        }
+                        else if (foundRows.Length < 1)
+                        {
+                            // If not found, add a new row, add this entry's string ID to its ID column and this entry's value to its new column
+                            DataRow row = Table.NewRow();
+                            row["ID"] = key;
+                            row["result"] = (int)ResultType.StringDeleted;
+                            row["old"] = value;
+                            Table.Rows.Add(row);
+                        }
+                        else // (foundRows.Length > 1)
+                        {
+                            foreach (DataRow row in foundRows)
+                            {
+                                // If we found more than one row with this ID, we have duplicate string IDs; This should be fixed ASAP
+                                foundRows[0]["result"] = (int)ResultType.StringsDuplicated;
+                            }
+                        }
+                    }
                 }
+
+                reader.Close();
+            }
+            catch (Exception e)
+            {
+                // TODO: Error handling
+                Console.WriteLine(e);
+                return 1;
             }
 
-            reader.Close();
+            return 0;
         }
 
-        public int TestStrings()
+        private static int CompareStrings(string newString, string oldString)
         {
-            Console.WriteLine("Checking resource strings...");
+            if ((newString == String.Empty) && (oldString== String.Empty))
+            {
+                return (int)ResultType.StringsEmpty;
+            }
 
-            int columns = Table.Columns.Count;
-            int rows = Table.Rows.Count;
+            if (oldString == String.Empty)
+            {
+                return (int)ResultType.StringAdded;
+            }
 
-            int columnPairings = (columns - 1) / 2;
-            int newColumnIndex = 2;
-            int oldColumnIndex = columnPairings + newColumnIndex;
-            //int resultColumn = 1;
+            if (newString == String.Empty)
+            {
+                return (int)ResultType.StringDeleted;
+            }
 
-            int returnValue = 0;
+            if (newString != oldString)
+            {
+                return (int)ResultType.StringMismatch;
+            }
 
-            //Results results = new Results();
-
-            //for (int i = newColumnIndex; i < oldColumnIndex; i++)
-            //{
-                for (int j = 0; j < rows; j++)
-                {
-                    DataRow row = Table.Rows[j];
-
-                    int type;
-                    string id = row.ItemArray[0].ToString();
-                    string newVal = row.ItemArray[newColumnIndex].ToString();
-                    string oldVal = row.ItemArray[oldColumnIndex].ToString();
-
-                    if ((oldVal == String.Empty) && (newVal == String.Empty))
-                    {
-                        // TODO: This is usually the translations for an added string
-                        // For now, just count it as added, but we might want to alter that later
-                        type = (int)ResultType.StringAdded;
-                        if (Settings.IsErrorOnAdds) { returnValue = 1; }
-                    }
-                    else if (oldVal == String.Empty)
-                    {
-                        type = (int)ResultType.StringAdded;
-                        if (Settings.IsErrorOnAdds) { returnValue = 1; }
-                    }
-                    else if (newVal == String.Empty)
-                    {
-                        type = (int)ResultType.StringDeleted;
-                        if (Settings.IsErrorOnDeletes) { returnValue = 1; }
-                    }
-                    else if (newVal != oldVal)
-                    {
-                        type = (int)ResultType.StringMismatch;
-                        if (Settings.IsErrorOnMismatches) { returnValue = 1; }
-                    }
-                    else
-                    {
-                        type = (int)ResultType.StringMatch;
-                    }
-
-                    if (j == 0)
-                    {
-                        int z = 0;
-                    }
-
-                    row["result"] = (int)type;
-                }
-
-                //newColumnIndex++;
-                //oldColumnIndex++;
-            //}
-
-            return returnValue;
+            return (int)ResultType.StringMatch;
         }
 
-        public void OutputResults()
+        public static bool OutputResults()
         {
             DataView dataView;
-            string id;
-            string newVal;
-            string oldVal;
+            string id, newVal, oldVal;
+
+            // Filter on duplicate string IDs & sort
+            if (Settings.IsReportDuplicateIds)
+            {
+                dataView = SetDataView(ResultType.StringsDuplicated);
+                Console.WriteLine("\nResX Duplicate String IDs: {0} ----------------------------------------\n", dataView.Count);
+                foreach (DataRowView item in dataView)
+                {
+                    id = item["ID"].ToString();
+                    newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                    oldVal = item["old"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                    Console.WriteLine("  {0}\n    New: {1}\n    Old: {2}\n", id, newVal, oldVal);
+                }
+            }
 
             // Filter on mismatched strings & sort
             if (Settings.IsReportMismatches)
@@ -254,9 +197,21 @@ namespace ResxDiff
                 foreach (DataRowView item in dataView)
                 {
                     id = item["ID"].ToString();
-                    newVal = item["default"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
-                    oldVal = item[_oldDefaultColumnIndex].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                    newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                    oldVal = item["old"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
                     Console.WriteLine("  {0}\n    New: {1}\n    Old: {2}\n", id, newVal, oldVal);
+                }
+            }
+
+            // Filter on empty strings & sort
+            if (Settings.IsReportEmptyStrings)
+            {
+                dataView = SetDataView(ResultType.StringsEmpty);
+                Console.WriteLine("\nResX Default Empty Strings: {0} ----------------------------------------\n", dataView.Count);
+                foreach (DataRowView item in dataView)
+                {
+                    id = item["ID"].ToString();
+                    Console.WriteLine("  {0}\n", id);
                 }
             }
 
@@ -268,7 +223,7 @@ namespace ResxDiff
                 foreach (DataRowView item in dataView)
                 {
                     id = item["ID"].ToString();
-                    oldVal = item[_oldDefaultColumnIndex].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                    oldVal = item["old"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
                     Console.WriteLine("  {0}  //  {1}\n", id, oldVal);
                 }
             }
@@ -281,7 +236,7 @@ namespace ResxDiff
                 foreach (DataRowView item in dataView)
                 {
                     id = item["ID"].ToString();
-                    newVal = item["default"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                    newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
                     Console.WriteLine("  {0}  //  {1}\n", id, newVal);
                 }
             }
@@ -294,119 +249,19 @@ namespace ResxDiff
                 foreach (DataRowView item in dataView)
                 {
                     id = item["ID"].ToString();
-                    newVal = item["default"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                    newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
                     Console.WriteLine("  {0}  //  {1}\n", id, newVal);
                 }
             }
+
+            return true; // TODO: Fix me!
         }
 
-        public DataView SetDataView(ResultType resultType)
+        private static DataView SetDataView(ResultType resultType)
         {
             string filter = "result = " + ((int)resultType).ToString();
             string sort = "ID ASC";
             return new DataView(Table, filter, sort, DataViewRowState.CurrentRows);
         }
-
     }
-/*
-    public class Results
-        {
-            private const string SORT_ORDER = "ID ASC";
-            public const string HEADER_LINE = "\n--------------------------------------------------------------------------------";
-
-            public DataTable ResultsTable = null;
-
-            public Results()
-            {
-                ResultsTable = new DataTable();
-                DataColumn col = new DataColumn();
-                col.DataType = Type.GetType("System.Int32");
-                col.ColumnName = "Type";
-                col.AutoIncrement = false;
-                col.Caption = "Type";
-                col.ReadOnly = false;
-                col.Unique = false;
-                ResultsTable.Columns.Add(col);
-
-                string[] additionalColumns = { "ID", "New", "Old" };
-                foreach (string column in additionalColumns)
-                {
-                    col = new DataColumn();
-                    col.DataType = Type.GetType("System.String");
-                    col.ColumnName = column;
-                    col.AutoIncrement = false;
-                    col.Caption = column;
-                    col.ReadOnly = false;
-                    col.Unique = false;
-                    ResultsTable.Columns.Add(col);
-                }
-            }
-
-            public void Add(int type, string id, string newVal, string oldVal)
-            {
-                DataRow row = ResultsTable.NewRow();
-                row["Type"] = type;
-                row["ID"] = id;
-                row["New"] = newVal;
-                row["Old"] = oldVal;
-                ResultsTable.Rows.Add(row);
-            }
-
-            public void DisplayResultType(int type)
-            {
-                string filter = String.Format("Type = {0}", (int)type);
-
-                DataRow[] foundRows = ResultsTable.Select(filter, SORT_ORDER);
-                foreach (DataRow row in foundRows)
-                {
-                    Console.WriteLine("MISMATCH: id[{0}], newVal[{1}], oldVal[{2}]",
-                        row.ItemArray[1].ToString(),
-                        row.ItemArray[2].ToString(),
-                        row.ItemArray[3].ToString());
-                }
-            }
-
-            public void DisplayMatches() { }
-
-            public void DisplayMismatches()
-            {
-                Console.WriteLine(HEADER_LINE);
-                Console.WriteLine("String resource mismatches\n ");
-
-                DataRow[] foundRows = ResultsTable.Select("Type = 1", SORT_ORDER);
-                foreach (DataRow row in foundRows)
-                {
-                    Console.WriteLine("* id[{0}], newVal[{1}], oldVal[{2}]", row.ItemArray[1].ToString(),
-                        row.ItemArray[2].ToString(), row.ItemArray[3].ToString());
-                }
-            }
-
-            public void DisplayAdditions()
-            {
-                Console.WriteLine(HEADER_LINE);
-                Console.WriteLine("String resource additions\n ");
-
-                DataRow[] foundRows = ResultsTable.Select("Type = 2", SORT_ORDER);
-                foreach (DataRow row in foundRows)
-                {
-                    Console.WriteLine("* id[{0}], newVal[{1}], oldVal[{2}]", row.ItemArray[1].ToString(),
-                        row.ItemArray[2].ToString(), row.ItemArray[3].ToString());
-                }
-            }
-
-            public void DisplayDeletions()
-            {
-                Console.WriteLine(HEADER_LINE);
-                Console.WriteLine("String resource deletions\n ");
-
-                DataRow[] foundRows = ResultsTable.Select("Type = 3", SORT_ORDER);
-                foreach (DataRow row in foundRows)
-                {
-                    Console.WriteLine("* id[{0}], newVal[{1}], oldVal[{2}]", row.ItemArray[1].ToString(),
-                        row.ItemArray[2].ToString(), row.ItemArray[3].ToString());
-                }
-            }
-        }
-*/
-
 }

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Data;
 
 
 namespace ResxDiff
@@ -10,23 +9,42 @@ namespace ResxDiff
         {
             if (!Settings.ProcessArgs(args))
             {
+                // Error messages written inside above function
                 return 1;
             }
 
-            // Temp dev code
-            string tempNewLoc = null, tempOldLoc = null;
-            tempNewLoc = @"C:\source\git\PICO\TrimbleFieldLink-a\Foundation.SharedResources\Properties";
-            tempOldLoc = @"C:\source\git\PICO\TrimbleFieldLink-b\Foundation.SharedResources\Properties";
+            // Temp dev code; get the code from git
+            Settings.OldResxDir = @"C:\source\git\PICO\TrimbleFieldLink-b\Foundation.SharedResources\Properties";
 
             // Build a string resource table from the code base's new & old resx files
-            StringResourceTable stringResourceTable = new StringResourceTable(tempNewLoc, tempOldLoc);
+            if (!StringResourceTable.Initialize())
+            {
+                // Error messages written inside above function
+                return 1;
+            }
 
+            if (!StringResourceTable.ImportNewResxData())
+            {
+                // Error messages written inside above function
+                return 1;
+            }
 
-            int returnValue = stringResourceTable.TestStrings();
+            int testResults = StringResourceTable.ImportAndProcessOldResxData();
+            switch (testResults)
+            {
+                case 0:
+                    break;
+                case 1:
+                    break;
+                default:
+                    break;
+            }
 
-
-            stringResourceTable.OutputResults();
-
+            if (!StringResourceTable.OutputResults())
+            {
+                // Error messages written inside above function
+                return 1;
+            }
 
             Console.WriteLine("\nDone!");
 
@@ -36,14 +54,7 @@ namespace ResxDiff
                 Console.ReadLine();
             }
 
-            if (Settings.IsReturnFailureOnDiscrepency)
-            {
-                return returnValue;
-            }
-            else
-            {
-                return 0;
-            }
+            return (Settings.IsReturnFailureOnDiscrepency) ? testResults : 0;
         }
     }
 }

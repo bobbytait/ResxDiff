@@ -14,15 +14,16 @@ namespace ResxDiff
         // --- Undeveloped switches, but variables in use ---
 
         // If true, output a report on this type of finding
+        public static bool IsReportDuplicateIds = true;
         public static bool IsReportMismatches = true;
+        public static bool IsReportEmptyStrings = true;
         public static bool IsReportAdds = true;
         public static bool IsReportDeletes = true;
         public static bool IsReportMatches = false;
 
         // If true, return an error code on this type of finding
+        public static bool IsErrorOnDuplicateIds = true;
         public static bool IsErrorOnMismatches = true;
-        public static bool IsErrorOnAdds = false;
-        public static bool IsErrorOnDeletes = false;
 
         // If true, after running, waits for a keypress to return to caller
         public static bool IsWaitForKeypressOnFinish = false;
