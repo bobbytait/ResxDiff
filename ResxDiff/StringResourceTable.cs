@@ -19,7 +19,7 @@ namespace ResxDiff
     {
         private const string DEFAULT_RESX_FILENAME = "Resources.resx";
         private const string RESX_FILE_FILTER = "*.resx";
-        private const string FAKE_CR = "»";
+        private const char FAKE_CR = '»';
 
         private string _newResxFilePath = null;
         private string _oldResxFilePath = null;
@@ -311,8 +311,8 @@ namespace ResxDiff
                 foreach (DataRowView item in dataView)
                 {
                     id = item["ID"].ToString();
-                    newVal = item["default"].ToString().Replace("\n", FAKE_CR);
-                    oldVal = item[_oldDefaultColumnIndex].ToString().Replace("\n", FAKE_CR);
+                    newVal = item["default"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                    oldVal = item[_oldDefaultColumnIndex].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
                     Console.WriteLine("  {0}\n    New: {1}\n    Old: {2}\n", id, newVal, oldVal);
                 }
             }
@@ -325,7 +325,7 @@ namespace ResxDiff
                 foreach (DataRowView item in dataView)
                 {
                     id = item["ID"].ToString();
-                    oldVal = item[_oldDefaultColumnIndex].ToString().Replace("\n", FAKE_CR);
+                    oldVal = item[_oldDefaultColumnIndex].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
                     Console.WriteLine("  {0}  //  {1}\n", id, oldVal);
                 }
             }
@@ -338,7 +338,7 @@ namespace ResxDiff
                 foreach (DataRowView item in dataView)
                 {
                     id = item["ID"].ToString();
-                    newVal = item["default"].ToString().Replace("\n", FAKE_CR);
+                    newVal = item["default"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
                     Console.WriteLine("  {0}  //  {1}\n", id, newVal);
                 }
             }
@@ -351,7 +351,7 @@ namespace ResxDiff
                 foreach (DataRowView item in dataView)
                 {
                     id = item["ID"].ToString();
-                    newVal = item["default"].ToString().Replace("\n", FAKE_CR);
+                    newVal = item["default"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
                     Console.WriteLine("  {0}  //  {1}\n", id, newVal);
                 }
             }
