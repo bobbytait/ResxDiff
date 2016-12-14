@@ -67,7 +67,7 @@ namespace ResxDiff
 
         public static bool ProcessArgs(string[] args)
         {
-            Console.WriteLine("Arguments: {0}", args);
+            //Console.WriteLine("Arguments: {0}", args);
 
             for (int i = 0; i < args.Length; i++)
             {

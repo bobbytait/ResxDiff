@@ -118,7 +118,7 @@ namespace ResxDiff
                             // If not found, add a new row, add this entry's string ID to its ID column and this entry's value to its new column
                             DataRow row = Table.NewRow();
                             row["ID"] = key;
-                            row["result"] = (int)ResultType.StringDeleted;
+                            row["result"] = (int)ResultType.StringAdded;
                             row["old"] = value;
                             Table.Rows.Add(row);
                         }
@@ -147,6 +147,13 @@ namespace ResxDiff
 
         private static int CompareStrings(string newString, string oldString)
         {
+            // TODO: Create some duplicate IDs to test with
+
+            // TODO: Create some empty strings to test with
+
+            // TODO: Debug why we lost additions
+
+
             if ((newString == String.Empty) && (oldString== String.Empty))
             {
                 return (int)ResultType.StringsEmpty;
