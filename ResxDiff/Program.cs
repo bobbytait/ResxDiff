@@ -14,7 +14,7 @@ namespace ResxDiff
             }
 
             // Temp dev code; get the code from git
-            Settings.OldResxDir = @"C:\source\git\PICO\TrimbleFieldLink-b\Foundation.SharedResources\Properties";
+            //Settings.OldResxDir = @"C:\source\git\PICO\TrimbleFieldLink-b\Foundation.SharedResources\Properties";
 
             // Build a string resource table from the code base's new & old resx files
             if (!StringResourceTable.Initialize())
@@ -54,7 +54,7 @@ namespace ResxDiff
                 Console.ReadLine();
             }
 
-            return (Settings.IsReturnFailureOnDiscrepency) ? testResults : 0;
+            return /*(Settings.IsReturnFailureOnDiscrepency) ? */ testResults /*: 0*/;
         }
     }
 }

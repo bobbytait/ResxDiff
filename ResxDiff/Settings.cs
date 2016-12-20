@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Net;
 
 
 namespace ResxDiff
@@ -11,9 +12,11 @@ namespace ResxDiff
         // Directory containing newer resx file
         public static string NewResxDir = null;
 
-        // --- Undeveloped switches, but variables in use ---
+        // Directory containing older resx files we want to compare with
+        public static string OldResxDir = null;
 
         // If true, output a report on this type of finding
+        // These variables are set as options; maybe later we'll make them switchable
         public static bool IsReportDuplicateIds = true;
         public static bool IsReportMismatches = true;
         public static bool IsReportEmptyStrings = true;
@@ -21,54 +24,12 @@ namespace ResxDiff
         public static bool IsReportDeletes = true;
         public static bool IsReportMatches = false;
 
-        // If true, return an error code on this type of finding
-        public static bool IsErrorOnDuplicateIds = true;
-        public static bool IsErrorOnMismatches = true;
-
         // If true, after running, waits for a keypress to return to caller
         public static bool IsWaitForKeypressOnFinish = false;
 
-        // --- As yet undeveloped switches ---
-
-        // Directory of this repository's local root
-        public static string GitRootPath = null;
-
-        // Git branch to compare with
-        public static string GitBranch = null;
-
-        // Directory containing older resx files we want to compare with
-        public static string OldResxDir = null;
-
-        // Write report to screen?
-        public static bool IsReportToScreen = true;
-
-        // Write report to text file?
-        public static bool IsReportToFile = false;
-
-        // Path to report file
-        public static string ReportPath = null;
-
-        // If a default language string has changed, clear its translations from the translation
-        // resx files. Will require writing to resx files.
-        public static bool IsClearObsoleteTranslations = false;
-
-        // For scripting, return a non-zero code if any discrepencies found
-        public static bool IsReturnFailureOnDiscrepency = true;
-
-        public static bool IsShowProgress = false;
-
-        public static int Verbosity = 0;
-
-        // Need a value to determine when/not to return 0, depending on results
-
-        //static Settings()
-        //{
-        //}
 
         public static bool ProcessArgs(string[] args)
         {
-            //Console.WriteLine("Arguments: {0}", args);
-
             for (int i = 0; i < args.Length; i++)
             {
                 string argName = args[i].ToLower();
@@ -90,6 +51,28 @@ namespace ResxDiff
                     continue;
                 }
 
+                // Path to the resources.resx file to compare to
+                if (argName == "/oldpath")
+                {
+                    OldResxDir = args[++i];
+                    if (OldResxDir.Equals(NewResxDir))
+                    {
+                        Console.WriteLine(" [ERROR] '/oldpath' cannot be the same as: {0}", NewResxDir);
+                        return false;
+                    }
+                    if (!Directory.Exists(OldResxDir))
+                    {
+                        Console.WriteLine(" [ERROR] Directory does not exist: {0}", OldResxDir);
+                        return false;
+                    }
+                    if (!File.Exists(Path.Combine(OldResxDir, DEFAULT_RESX_FILENAME)))
+                    {
+                        Console.WriteLine(" [ERROR] {0} does not exist in: {1}", DEFAULT_RESX_FILENAME, OldResxDir);
+                        return false;
+                    }
+                    continue;
+                }
+
                 // After running, waits for a keypress to return to comnmand prompt
                 else
                 if (argName == "/wait")
@@ -98,8 +81,6 @@ namespace ResxDiff
                     continue;
                 }
             }
-
-            // TODO: Set up any default values, if we need to
 
             // If NewResxDir was not set above, assume "."
             if (NewResxDir == null)
@@ -110,6 +91,12 @@ namespace ResxDiff
                     Console.WriteLine(" [ERROR] {0} does not exist in: {1}", DEFAULT_RESX_FILENAME, NewResxDir);
                     return false;
                 }
+            }
+
+            if (OldResxDir == null)
+            {
+                Console.WriteLine(" [ERROR] '/oldpath' parameter is required");
+                return false;
             }
 
             return true;
