@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Net;
 
 
 namespace ResxDiff
@@ -16,7 +15,7 @@ namespace ResxDiff
         public static string OldResxDir = null;
 
         // If true, output a report on this type of finding
-        // These variables are set as options; maybe later we'll make them switchable
+        // (Not fully implemented)
         public static bool IsReportDuplicateIds = true;
         public static bool IsReportMismatches = true;
         public static bool IsReportEmptyStrings = true;
@@ -27,76 +26,97 @@ namespace ResxDiff
         // If true, after running, waits for a keypress to return to caller
         public static bool IsWaitForKeypressOnFinish = false;
 
+        // If true, return a non-zero error code to the caller when a discrepency is encountered
+        // (Not fully implemented)
+        public static bool IsReturnFailureOnDiscrepency = false;
+
 
         public static bool ProcessArgs(string[] args)
         {
-            for (int i = 0; i < args.Length; i++)
+            try
             {
-                string argName = args[i].ToLower();
-
-                // Path to the latest resources.resx file
-                if (argName == "/newpath")
+                for (int i = 0; i < args.Length; i++)
                 {
-                    NewResxDir = args[++i];
-                    if (!Directory.Exists(NewResxDir))
+                    string argName = args[i].ToLower();
+
+                    // Path to the latest resources.resx file
+                    if (argName == "/newpath")
                     {
-                        Console.WriteLine(" [ERROR] Directory does not exist: {0}", NewResxDir);
-                        return false;
+                        NewResxDir = args[++i];
+
+                        if ((NewResxDir == null) || (NewResxDir == String.Empty) || NewResxDir.StartsWith("/"))
+                        {
+                            return ErrorHandling.OutputError(String.Format("Invalid '/newpath': {0}", NewResxDir));
+                        }
+
+                        if (!Directory.Exists(NewResxDir))
+                        {
+                            return ErrorHandling.OutputError(String.Format("Directory does not exist: {0}", NewResxDir));
+                        }
+
+                        if (!File.Exists(Path.Combine(NewResxDir, DEFAULT_RESX_FILENAME)))
+                        {
+                            return ErrorHandling.OutputError(String.Format("{0} does not exist in: {1}", DEFAULT_RESX_FILENAME, NewResxDir));
+                        }
+
+                        continue;
                     }
+
+                    // Path to the resources.resx file to compare to
+                    if (argName == "/oldpath")
+                    {
+                        OldResxDir = args[++i];
+
+                        if ((OldResxDir == null) || (OldResxDir == String.Empty) || OldResxDir.StartsWith("/"))
+                        {
+                            return ErrorHandling.OutputError(String.Format("Invalid '/oldpath': {0}", OldResxDir));
+                        }
+
+                        if (OldResxDir.Equals(NewResxDir))
+                        {
+                            return ErrorHandling.OutputError(String.Format("'/oldpath' cannot be the same as: {0}", NewResxDir));
+                        }
+
+                        if (!Directory.Exists(OldResxDir))
+                        {
+                            return ErrorHandling.OutputError(String.Format("Directory does not exist: {0}", OldResxDir));
+                        }
+
+                        if (!File.Exists(Path.Combine(OldResxDir, DEFAULT_RESX_FILENAME)))
+                        {
+                            return ErrorHandling.OutputError(String.Format("{0} does not exist in: {1}", DEFAULT_RESX_FILENAME, OldResxDir));
+                        }
+
+                        continue;
+                    }
+
+                    // After running, waits for a keypress to return to comnmand prompt
+                    if (argName == "/wait")
+                    {
+                        IsWaitForKeypressOnFinish = true;
+                        continue;
+                    }
+                }
+
+                // If NewResxDir was not set above, assume "."
+                if (NewResxDir == null)
+                {
+                    NewResxDir = Environment.CurrentDirectory;
+
                     if (!File.Exists(Path.Combine(NewResxDir, DEFAULT_RESX_FILENAME)))
                     {
-                        Console.WriteLine(" [ERROR] {0} does not exist in: {1}", DEFAULT_RESX_FILENAME, NewResxDir);
-                        return false;
+                        return ErrorHandling.OutputError(String.Format("{0} does not exist in: {1}", DEFAULT_RESX_FILENAME, NewResxDir));
                     }
-                    continue;
                 }
 
-                // Path to the resources.resx file to compare to
-                if (argName == "/oldpath")
+                if (OldResxDir == null)
                 {
-                    OldResxDir = args[++i];
-                    if (OldResxDir.Equals(NewResxDir))
-                    {
-                        Console.WriteLine(" [ERROR] '/oldpath' cannot be the same as: {0}", NewResxDir);
-                        return false;
-                    }
-                    if (!Directory.Exists(OldResxDir))
-                    {
-                        Console.WriteLine(" [ERROR] Directory does not exist: {0}", OldResxDir);
-                        return false;
-                    }
-                    if (!File.Exists(Path.Combine(OldResxDir, DEFAULT_RESX_FILENAME)))
-                    {
-                        Console.WriteLine(" [ERROR] {0} does not exist in: {1}", DEFAULT_RESX_FILENAME, OldResxDir);
-                        return false;
-                    }
-                    continue;
-                }
-
-                // After running, waits for a keypress to return to comnmand prompt
-                else
-                if (argName == "/wait")
-                {
-                    IsWaitForKeypressOnFinish = true;
-                    continue;
+                    return ErrorHandling.OutputError("'/oldpath' parameter is required");
                 }
             }
-
-            // If NewResxDir was not set above, assume "."
-            if (NewResxDir == null)
+            catch (Exception e)
             {
-                NewResxDir = Environment.CurrentDirectory;
-                if (!File.Exists(Path.Combine(NewResxDir, DEFAULT_RESX_FILENAME)))
-                {
-                    Console.WriteLine(" [ERROR] {0} does not exist in: {1}", DEFAULT_RESX_FILENAME, NewResxDir);
-                    return false;
-                }
-            }
-
-            if (OldResxDir == null)
-            {
-                Console.WriteLine(" [ERROR] '/oldpath' parameter is required");
-                return false;
+                return ErrorHandling.OutputError("Occurred processing command line parameters", e);
             }
 
             return true;

@@ -13,9 +13,6 @@ namespace ResxDiff
                 return 1;
             }
 
-            // Temp dev code; get the code from git
-            //Settings.OldResxDir = @"C:\source\git\PICO\TrimbleFieldLink-b\Foundation.SharedResources\Properties";
-
             // Build a string resource table from the code base's new & old resx files
             if (!StringResourceTable.Initialize())
             {
@@ -23,22 +20,21 @@ namespace ResxDiff
                 return 1;
             }
 
+            Console.WriteLine("Loading & processing resx data...");
+
             if (!StringResourceTable.ImportNewResxData())
             {
                 // Error messages written inside above function
                 return 1;
             }
 
-            int testResults = StringResourceTable.ImportAndProcessOldResxData();
-            switch (testResults)
+            if (!StringResourceTable.ImportOldResxData())
             {
-                case 0:
-                    break;
-                case 1:
-                    break;
-                default:
-                    break;
+                // Error messages written inside above function
+                return 1;
             }
+
+            int testResults = StringResourceTable.CompareResxData();
 
             if (!StringResourceTable.OutputResults())
             {
@@ -54,7 +50,7 @@ namespace ResxDiff
                 Console.ReadLine();
             }
 
-            return /*(Settings.IsReturnFailureOnDiscrepency) ? */ testResults /*: 0*/;
+            return (Settings.IsReturnFailureOnDiscrepency) ? testResults : 0;
         }
     }
 }

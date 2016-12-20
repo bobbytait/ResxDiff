@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Data;
 using System.IO;
+using System.Linq;
 using System.Resources;
+using System.Xml.Linq;
 
 
 namespace ResxDiff
@@ -13,7 +16,7 @@ namespace ResxDiff
         StringMismatch,
         StringAdded,
         StringDeleted,
-        StringsDuplicated,
+        StringIdsDuplicated,
         StringsEmpty
     }
 
@@ -23,9 +26,7 @@ namespace ResxDiff
 
         public static DataTable Table = null;
 
-        //private static string _oldResxFilePath = null;
-        //private static string _oldDefaultResxFile = null;
-        //private static int _oldDefaultColumnIndex = -1;
+        private static string _newResxFile = null;
 
         public static bool Initialize()
         {
@@ -40,9 +41,7 @@ namespace ResxDiff
             }
             catch (Exception e)
             {
-                // TODO: Error handling
-                Console.WriteLine(e);
-                return false;
+                return ErrorHandling.OutputError("Occurred initializing data table", e);
             }
 
             return true;
@@ -52,14 +51,12 @@ namespace ResxDiff
         {
             try
             {
-                // Get data from new default resx file
-                Console.WriteLine("Loading new default resx file...");
-                string resxFile = Path.Combine(Settings.NewResxDir, Settings.DEFAULT_RESX_FILENAME);
-                ResXResourceReader reader = new ResXResourceReader(resxFile);
-
+                // Setting the new resx dir as the current directory, since file-based resources can cause exceptions if the source file is not found
                 Environment.CurrentDirectory = Settings.NewResxDir;
 
-                Console.WriteLine("Populating table with new default resx entries...");
+                // Get data from new default resx file
+                _newResxFile = Path.Combine(Settings.NewResxDir, Settings.DEFAULT_RESX_FILENAME);
+                ResXResourceReader reader = new ResXResourceReader(_newResxFile);
                 DataRow row;
                 foreach (DictionaryEntry entry in reader)
                 {
@@ -77,24 +74,19 @@ namespace ResxDiff
             }
             catch (Exception e)
             {
-                // TODO: Error handling
-                Console.WriteLine(e);
-                return false;
+                return ErrorHandling.OutputError("Occurred importing newer string resource data", e);
             }
 
             return true;
         }
 
-        public static int ImportAndProcessOldResxData()
+        public static bool ImportOldResxData()
         {
             try
             {
                 // Get data from old default resx file
-                Console.WriteLine("Loading old default resx file...");
                 string resxFile = Path.Combine(Settings.OldResxDir, Settings.DEFAULT_RESX_FILENAME);
                 ResXResourceReader reader = new ResXResourceReader(resxFile);
-
-                Console.WriteLine("Populating table with old default resx entries...");
                 foreach (DictionaryEntry entry in reader)
                 {
                     if (entry.Value is String)
@@ -109,26 +101,14 @@ namespace ResxDiff
                         {
                             // If this entry is found in the "new" column, add the value to the row
                             foundRows[0]["old"] = value;
-
-                            // Compare its new & old strings and store the result
-                            foundRows[0]["result"] = CompareStrings(foundRows[0]["new"].ToString(), value);
                         }
                         else if (foundRows.Length < 1)
                         {
                             // If not found, add a new row, add this entry's string ID to its ID column and this entry's value to its new column
                             DataRow row = Table.NewRow();
                             row["ID"] = key;
-                            row["result"] = (int)ResultType.StringAdded;
                             row["old"] = value;
                             Table.Rows.Add(row);
-                        }
-                        else // (foundRows.Length > 1)
-                        {
-                            foreach (DataRow row in foundRows)
-                            {
-                                // If we found more than one row with this ID, we have duplicate string IDs; This should be fixed ASAP
-                                foundRows[0]["result"] = (int)ResultType.StringsDuplicated;
-                            }
                         }
                     }
                 }
@@ -137,8 +117,64 @@ namespace ResxDiff
             }
             catch (Exception e)
             {
-                // TODO: Error handling
-                Console.WriteLine(e);
+                return ErrorHandling.OutputError("Occurred importing older string resource data", e);
+            }
+
+            return true;
+        }
+
+        public static int CompareResxData()
+        {
+            try
+            {
+                foreach (DataRow row in Table.Rows)
+                {
+                    // Get entry's string ID & value
+                    string key = row["ID"].ToString();
+                    string newValue = row["new"].ToString();
+                    string oldValue = row["old"].ToString();
+
+                    if ((newValue == String.Empty) && (oldValue == String.Empty))
+                    {
+                        row["result"] = (int)ResultType.StringsEmpty;
+                    }
+                    else if (oldValue == String.Empty)
+                    {
+                        row["result"] = (int)ResultType.StringAdded;
+                    }
+                    else if (newValue == String.Empty)
+                    {
+                        row["result"] = (int)ResultType.StringDeleted;
+                    }
+                    else if (newValue == oldValue)
+                    {
+                        row["result"] = (int)ResultType.StringMatch;
+                    }
+                    else if (newValue != oldValue)
+                    {
+                        row["result"] = (int)ResultType.StringMismatch;
+                    }
+                }
+
+                // A quick hack (for now) to find resource string ID duplicates; Needed since
+                // ResXResourceReader simple merges rows with duplicate IDs
+                IEnumerable<string> duplicateIds = XDocument.Load(_newResxFile)
+                    .Descendants("data")
+                    .GroupBy(g => (string)g.Attribute("name"))
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key);
+                DataRow duplicateRow;
+                foreach (string duplicateId in duplicateIds)
+                {
+                    duplicateRow = Table.NewRow();
+                    duplicateRow["ID"] = duplicateId;
+                    duplicateRow["result"] = ResultType.StringIdsDuplicated;
+                    Table.Rows.Add(duplicateRow);
+                }
+            }
+            catch (Exception e)
+            {
+                ErrorHandling.OutputError("Occurred comparing ResX data", e);
                 return 1;
             }
 
@@ -147,13 +183,6 @@ namespace ResxDiff
 
         private static int CompareStrings(string newString, string oldString)
         {
-            // TODO: Create some duplicate IDs to test with
-
-            // TODO: Create some empty strings to test with
-
-            // TODO: Debug why we lost additions
-
-
             if ((newString == String.Empty) && (oldString== String.Empty))
             {
                 return (int)ResultType.StringsEmpty;
@@ -182,93 +211,104 @@ namespace ResxDiff
             DataView dataView;
             string id, newVal, oldVal;
 
-            // Filter on duplicate string IDs & sort
-            if (Settings.IsReportDuplicateIds)
+            try
             {
-                dataView = SetDataView(ResultType.StringsDuplicated);
-                Console.WriteLine("\nResX Duplicate String IDs: {0} ----------------------------------------\n", dataView.Count);
-                foreach (DataRowView item in dataView)
+                // Filter on duplicate string IDs & sort
+                if (Settings.IsReportDuplicateIds)
                 {
-                    id = item["ID"].ToString();
-                    newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
-                    oldVal = item["old"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
-                    Console.WriteLine("  {0}\n    New: {1}\n    Old: {2}\n", id, newVal, oldVal);
+                    dataView = SetDataView(ResultType.StringIdsDuplicated);
+                    Console.WriteLine("\nResX Duplicate String IDs: {0} ----------------------------------------\n", dataView.Count);
+                    foreach (DataRowView item in dataView)
+                    {
+                        Console.WriteLine("  {0}", item["ID"].ToString());
+                    }
+                }
+
+                // Filter on mismatched strings & sort
+                if (Settings.IsReportMismatches)
+                {
+                    dataView = SetDataView(ResultType.StringMismatch);
+                    Console.WriteLine("\n\nResX Default String Mismatches: {0} ----------------------------------------", dataView.Count);
+                    foreach (DataRowView item in dataView)
+                    {
+                        id = item["ID"].ToString();
+                        newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                        oldVal = item["old"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                        Console.WriteLine("\n  {0}\n    New: {1}\n    Old: {2}", id, newVal, oldVal);
+                    }
+                }
+
+                // Filter on empty strings & sort
+                if (Settings.IsReportEmptyStrings)
+                {
+                    dataView = SetDataView(ResultType.StringsEmpty);
+                    Console.WriteLine("\n\nResX Default Empty Strings: {0} ----------------------------------------\n", dataView.Count);
+                    foreach (DataRowView item in dataView)
+                    {
+                        Console.WriteLine("  {0}", item["ID"].ToString());
+                    }
+                }
+
+                // Filter on deleted strings & sort
+                if (Settings.IsReportDeletes)
+                {
+                    dataView = SetDataView(ResultType.StringDeleted);
+                    Console.WriteLine("\n\nResX Default String Deletions: {0} ----------------------------------------\n", dataView.Count);
+                    foreach (DataRowView item in dataView)
+                    {
+                        id = item["ID"].ToString();
+                        oldVal = item["old"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                        Console.WriteLine("  {0}  //  {1}", id, oldVal);
+                    }
+                }
+
+                // Filter on added strings & sort
+                if (Settings.IsReportAdds)
+                {
+                    dataView = SetDataView(ResultType.StringAdded);
+                    Console.WriteLine("\n\nResX Default String Additions: {0} ----------------------------------------\n", dataView.Count);
+                    foreach (DataRowView item in dataView)
+                    {
+                        id = item["ID"].ToString();
+                        newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                        Console.WriteLine("  {0}  //  {1}", id, newVal);
+                    }
+                }
+
+                // Filter on matching strings & sort
+                if (Settings.IsReportMatches)
+                {
+                    dataView = SetDataView(ResultType.StringMatch);
+                    Console.WriteLine("\n\nResX String Matches: {0} ----------------------------------------\n", dataView.Count);
+                    foreach (DataRowView item in dataView)
+                    {
+                        id = item["ID"].ToString();
+                        newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
+                        Console.WriteLine("  {0}  //  {1}", id, newVal);
+                    }
                 }
             }
-
-            // Filter on mismatched strings & sort
-            if (Settings.IsReportMismatches)
+            catch (Exception e)
             {
-                dataView = SetDataView(ResultType.StringMismatch);
-                Console.WriteLine("\nResX Default String Mismatches: {0} ----------------------------------------\n", dataView.Count);
-                foreach (DataRowView item in dataView)
-                {
-                    id = item["ID"].ToString();
-                    newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
-                    oldVal = item["old"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
-                    Console.WriteLine("  {0}\n    New: {1}\n    Old: {2}\n", id, newVal, oldVal);
-                }
+                ErrorHandling.OutputError("Occurred outputting results", e);
             }
 
-            // Filter on empty strings & sort
-            if (Settings.IsReportEmptyStrings)
-            {
-                dataView = SetDataView(ResultType.StringsEmpty);
-                Console.WriteLine("\nResX Default Empty Strings: {0} ----------------------------------------\n", dataView.Count);
-                foreach (DataRowView item in dataView)
-                {
-                    id = item["ID"].ToString();
-                    Console.WriteLine("  {0}\n", id);
-                }
-            }
-
-            // Filter on deleted strings & sort
-            if (Settings.IsReportDeletes)
-            {
-                dataView = SetDataView(ResultType.StringDeleted);
-                Console.WriteLine("\nResX Default String Deletions: {0} ----------------------------------------\n", dataView.Count);
-                foreach (DataRowView item in dataView)
-                {
-                    id = item["ID"].ToString();
-                    oldVal = item["old"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
-                    Console.WriteLine("  {0}  //  {1}\n", id, oldVal);
-                }
-            }
-
-            // Filter on added strings & sort
-            if (Settings.IsReportAdds)
-            {
-                dataView = SetDataView(ResultType.StringAdded);
-                Console.WriteLine("\nResX Default String Additions: {0} ----------------------------------------\n", dataView.Count);
-                foreach (DataRowView item in dataView)
-                {
-                    id = item["ID"].ToString();
-                    newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
-                    Console.WriteLine("  {0}  //  {1}\n", id, newVal);
-                }
-            }
-
-            // Filter on matching strings & sort
-            if (Settings.IsReportMatches)
-            {
-                dataView = SetDataView(ResultType.StringMatch);
-                Console.WriteLine("\nResX String Matches: {0} ----------------------------------------\n", dataView.Count);
-                foreach (DataRowView item in dataView)
-                {
-                    id = item["ID"].ToString();
-                    newVal = item["new"].ToString().Replace('\n', FAKE_CR).Replace('\r', FAKE_CR);
-                    Console.WriteLine("  {0}  //  {1}\n", id, newVal);
-                }
-            }
-
-            return true; // TODO: Fix me!
+            return true;
         }
 
         private static DataView SetDataView(ResultType resultType)
         {
-            string filter = "result = " + ((int)resultType).ToString();
-            string sort = "ID ASC";
-            return new DataView(Table, filter, sort, DataViewRowState.CurrentRows);
+            try
+            {
+                string filter = "result = " + ((int)resultType).ToString();
+                string sort = "ID ASC";
+                return new DataView(Table, filter, sort, DataViewRowState.CurrentRows);
+            }
+            catch (Exception e)
+            {
+                ErrorHandling.OutputError("Occurred setting data view", e);
+                return null;
+            }
         }
     }
 }
